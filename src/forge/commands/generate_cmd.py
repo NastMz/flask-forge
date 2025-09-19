@@ -23,6 +23,12 @@ from ..utils.fs import ensure_init_files
 
 generate = typer.Typer(help="Clean Architecture generators")
 
+# Help text constants
+BC_HELP = "Bounded context (e.g. catalog)"
+ENTITY_HELP = "Entity name (e.g. Product)"
+SERVICE_HELP = "Service name (e.g. ProductService)"
+CONTROLLER_HELP = "Controller name (e.g. product)"
+
 # --- Jinja2 Templates for Code Generation ---
 # These templates define the structure for different architectural layers
 
@@ -150,9 +156,205 @@ def register_{{name}}(api: Blueprint, container) -> None:
 """
 
 
+@generate.command("bc")
+def bounded_context(name: str = typer.Argument(..., help="Bounded context name (e.g. catalog)")):
+    """
+    Generate a bounded context structure.
+
+    Creates the directory structure for a bounded context following
+    Clean Architecture principles:
+    - domain/<bc>/ - Domain layer (entities, repositories)
+    - app/<bc>/ - Application layer (services)
+    - infra/<bc>/ - Infrastructure layer (implementations)
+    - interfaces/http/<bc>/ - Interface layer (controllers)
+
+    Args:
+        name: Bounded context name (e.g., 'catalog', 'users')
+
+    Example:
+        forge generate bc catalog
+    """
+    pkg = _detect_package()
+    bc = name.replace("-", "_")  # Normalize bounded context name
+
+    pkg_root = Path("src") / pkg
+
+    # Ensure all necessary directories and __init__.py files exist
+    ensure_init_files(pkg_root, [
+        f"domain/{bc}",
+        f"app/{bc}",
+        f"infra/{bc}",
+        f"interfaces/http/{bc}",
+    ])
+
+    rprint(
+        f"[green]Bounded context created:[/green] {bc} (domain/app/infra/interfaces)")
+
+
+@generate.command("entity")
+def entity(bc: str = typer.Argument(..., help=BC_HELP),
+           name: str = typer.Argument(..., help=ENTITY_HELP)):
+    """
+    Generate a domain entity with repository interface.
+
+    Creates:
+    - Domain entity as a dataclass
+    - Repository interface for data access
+
+    Args:
+        bc: Bounded context name (e.g., 'catalog', 'users')
+        name: Entity name in PascalCase (e.g., 'Product', 'User')
+
+    Example:
+        forge generate entity catalog Product
+    """
+    pkg = _detect_package()
+    bc = bc.replace("-", "_")  # Normalize bounded context name
+    entity_class = name[0].upper() + name[1:]  # PascalCase for class names
+
+    env = Environment(loader=DictLoader({
+        "entity": ENTITY_TMPL,
+        "repo_iface": REPO_IFACE_TMPL,
+    }))
+
+    pkg_root = Path("src") / pkg
+
+    # Ensure domain directory exists
+    ensure_init_files(pkg_root, [f"domain/{bc}"])
+
+    # Generate domain layer files
+    _generate_domain_files(pkg, bc, entity_class, env)
+
+    rprint(
+        f"[green]Entity generated:[/green] {bc}.{entity_class} (domain entity + repository interface)")
+
+
+@generate.command("repo")
+def repository(bc: str = typer.Argument(..., help=BC_HELP),
+               entity: str = typer.Argument(..., help=ENTITY_HELP),
+               impl: str = typer.Option("sqlalchemy", "--impl", help="Repository implementation type")):
+    """
+    Generate a repository implementation.
+
+    Creates repository implementation for the specified entity.
+    Currently supports SQLAlchemy implementation.
+
+    Args:
+        bc: Bounded context name (e.g., 'catalog', 'users')
+        entity: Entity name in PascalCase (e.g., 'Product', 'User')
+        impl: Implementation type (currently only 'sqlalchemy')
+
+    Example:
+        forge generate repo catalog Product --impl=sqlalchemy
+    """
+    pkg = _detect_package()
+    bc = bc.replace("-", "_")  # Normalize bounded context name
+    entity_class = entity[0].upper() + entity[1:]  # PascalCase for class names
+    entity_name = entity[0].lower() + entity[1:]   # camelCase for instances
+    table_name = entity_name + "s"  # Pluralized table name
+
+    if impl != "sqlalchemy":
+        rprint(
+            f"[red]Error:[/red] Implementation '{impl}' not supported. Currently only 'sqlalchemy' is available.")
+        raise typer.Exit(1)
+
+    env = Environment(loader=DictLoader({
+        "repo_sqla": REPO_SQLA_TMPL,
+    }))
+
+    pkg_root = Path("src") / pkg
+
+    # Ensure infrastructure directory exists
+    ensure_init_files(pkg_root, [f"infra/{bc}"])
+
+    # Generate infrastructure layer files
+    _generate_infrastructure_files(pkg, bc, entity_class, table_name, env)
+
+    rprint(
+        f"[green]Repository generated:[/green] {bc}.{entity_class} ({impl} implementation)")
+
+
+@generate.command("service")
+def service(bc: str = typer.Argument(..., help=BC_HELP),
+            name: str = typer.Argument(..., help=SERVICE_HELP)):
+    """
+    Generate a service class for business logic.
+
+    Creates an application service that encapsulates business logic
+    and coordinates between domain and infrastructure layers.
+
+    Args:
+        bc: Bounded context name (e.g., 'catalog', 'users')
+        name: Service name ending with 'Service' (e.g., 'ProductService')
+
+    Example:
+        forge generate service catalog ProductService
+    """
+    pkg = _detect_package()
+    bc = bc.replace("-", "_")  # Normalize bounded context name
+
+    # Extract entity name from service name (remove 'Service' suffix)
+    if name.endswith("Service"):
+        entity_class = name[:-7]  # Remove 'Service' suffix
+    else:
+        entity_class = name
+        name = name + "Service"  # Add 'Service' suffix if not present
+
+    env = Environment(loader=DictLoader({
+        "service": SERVICE_TMPL,
+    }))
+
+    pkg_root = Path("src") / pkg
+
+    # Ensure application directory exists
+    ensure_init_files(pkg_root, [f"app/{bc}"])
+
+    # Generate application layer files
+    _generate_application_files(pkg, bc, entity_class, env)
+
+    rprint(
+        f"[green]Service generated:[/green] {bc}.{name} (application service)")
+
+
+@generate.command("controller")
+def controller(bc: str = typer.Argument(..., help=BC_HELP),
+               name: str = typer.Argument(..., help=CONTROLLER_HELP)):
+    """
+    Generate a Flask blueprint controller.
+
+    Creates an HTTP controller with REST endpoints following
+    Flask blueprint patterns.
+
+    Args:
+        bc: Bounded context name (e.g., 'catalog', 'users')
+        name: Controller name in lowercase (e.g., 'product', 'user')
+
+    Example:
+        forge generate controller catalog product
+    """
+    pkg = _detect_package()
+    bc = bc.replace("-", "_")  # Normalize bounded context name
+    entity_name = name.lower()  # Ensure lowercase for URL patterns
+
+    env = Environment(loader=DictLoader({
+        "controller": CONTROLLER_TMPL,
+    }))
+
+    pkg_root = Path("src") / pkg
+
+    # Ensure interface directory exists
+    ensure_init_files(pkg_root, [f"interfaces/http/{bc}"])
+
+    # Generate interface layer files
+    _generate_interface_files(pkg, bc, entity_name, env)
+
+    rprint(
+        f"[green]Controller generated:[/green] {bc}.{entity_name} (Flask blueprint)")
+
+
 @generate.command("resource")
-def resource(bc: str = typer.Argument(..., help="Bounded context (e.g. catalog)"),
-             entity: str = typer.Argument(..., help="Entity name (e.g. Product)")):
+def resource(bc: str = typer.Argument(..., help=BC_HELP),
+             entity: str = typer.Argument(..., help=ENTITY_HELP)):
     """
     Generate a complete CRUD resource following Clean Architecture principles.
 
