@@ -1,3 +1,18 @@
+"""
+Generate command module for Forge CLI.
+
+This module provides code generation capabilities following Clean Architecture principles.
+It includes templates and commands to scaffold complete CRUD resources with proper
+layering (domain, application, infrastructure, and interface layers).
+
+The main functionality includes:
+- Entity generation with domain models
+- Repository pattern implementation (interface + SQLAlchemy)
+- Service layer for business logic
+- HTTP controllers with Flask blueprints
+- Automatic dependency injection wiring
+"""
+
 from __future__ import annotations
 import re
 from pathlib import Path
@@ -8,7 +23,10 @@ from ..utils.fs import ensure_init_files
 
 generate = typer.Typer(help="Clean Architecture generators")
 
-# --- templates ---
+# --- Jinja2 Templates for Code Generation ---
+# These templates define the structure for different architectural layers
+
+# Domain Entity Template - Represents core business objects
 ENTITY_TMPL = """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -19,6 +37,7 @@ class {{Entity}}:
     name: str
 """
 
+# Repository Interface Template - Defines data access contract
 REPO_IFACE_TMPL = """
 from __future__ import annotations
 from abc import ABC, abstractmethod
@@ -36,6 +55,7 @@ class I{{Entity}}Repository(ABC):
     def list(self) -> Iterable[{{Entity}}]: ...
 """
 
+# SQLAlchemy Repository Implementation Template - Data access layer
 REPO_SQLA_TMPL = """
 from __future__ import annotations
 from typing import Iterable, Optional
@@ -71,6 +91,7 @@ class SqlAlchemy{{Entity}}Repository(I{{Entity}}Repository):
             return [{{Entity}}(id=r.id, name=r.name) for r in s.scalars(select({{Entity}}Row)).all()]
 """
 
+# Service Layer Template - Business logic and use cases
 SERVICE_TMPL = """
 from __future__ import annotations
 from ...domain.{{bc}}.repositories import I{{Entity}}Repository
@@ -87,6 +108,7 @@ class {{Entity}}Service:
         return list(self._repo.list())
 """
 
+# HTTP Controller Template - REST API endpoints
 CONTROLLER_TMPL = """
 from __future__ import annotations
 from flask import Blueprint, request, jsonify
@@ -117,6 +139,7 @@ def list_{{name}}():
     return jsonify([{"id": i.id, "name": i.name} for i in items])
 """
 
+# API Registration Template - Wires controllers into the main API
 API_REG_PATCH = """
 from flask import Blueprint
 from .{{bc}}.controller import bp as {{name}}_bp, init_controller as init_{{name}}_controller
@@ -130,13 +153,46 @@ def register_{{name}}(api: Blueprint, container) -> None:
 @generate.command("resource")
 def resource(bc: str = typer.Argument(..., help="Bounded context (e.g. catalog)"),
              entity: str = typer.Argument(..., help="Entity name (e.g. Product)")):
-    """Generate domain entity + repo (SQLA) + service + controller and wire them."""
-    pkg = _detect_package()
-    bc = bc.replace("-", "_")
-    Entity = entity[0].upper() + entity[1:]
-    name = entity[0].lower() + entity[1:]
-    table = name + "s"
+    """
+    Generate a complete CRUD resource following Clean Architecture principles.
 
+    This command creates:
+    - Domain entity with dataclass
+    - Repository interface and SQLAlchemy implementation
+    - Service layer for business logic
+    - HTTP controller with REST endpoints
+    - Automatic dependency injection wiring
+
+    Args:
+        bc: Bounded context name (e.g., 'catalog', 'users')
+        entity: Entity name in PascalCase (e.g., 'Product', 'User')
+
+    Example:
+        forge generate resource catalog Product
+
+    This will create a complete Product resource within the catalog bounded context.
+    """
+    pkg = _detect_package()
+    bc = bc.replace("-", "_")  # Normalize bounded context name
+    entity_class = entity[0].upper() + entity[1:]  # PascalCase for class names
+    entity_name = entity[0].lower() + entity[1:]   # camelCase for instances
+    table_name = entity_name + "s"  # Pluralized table name
+
+    # Generate all code files
+    _generate_code_files(pkg, bc, entity_class, entity_name, table_name)
+
+    # Wire into API surface
+    _wire_api_integration(pkg, bc, entity_name)
+
+    # Setup dependency injection
+    _setup_dependency_injection(pkg, bc, entity_class, entity_name)
+
+    rprint(
+        f"[green]Resource generated:[/green] {bc}.{entity_class} (domain/app/infra/interfaces + wiring)")
+
+
+def _generate_code_files(pkg: str, bc: str, entity_class: str, entity_name: str, table_name: str) -> None:
+    """Generate all the code files for the resource."""
     env = Environment(loader=DictLoader({
         "entity": ENTITY_TMPL,
         "repo_iface": REPO_IFACE_TMPL,
@@ -147,6 +203,8 @@ def resource(bc: str = typer.Argument(..., help="Bounded context (e.g. catalog)"
     }))
 
     pkg_root = Path("src") / pkg
+
+    # Ensure all necessary directories and __init__.py files exist
     ensure_init_files(pkg_root, [
         f"domain/{bc}",
         f"app/{bc}",
@@ -154,124 +212,188 @@ def resource(bc: str = typer.Argument(..., help="Bounded context (e.g. catalog)"
         f"interfaces/http/{bc}",
     ])
 
-    # domain
-    (Path(f"src/{pkg}/domain/{bc}")).mkdir(parents=True, exist_ok=True)
-    (Path(f"src/{pkg}/domain/{bc}/entities.py")).write_text(
-        env.get_template("entity").render(Entity=Entity), encoding="utf-8")
-    (Path(f"src/{pkg}/domain/{bc}/repositories.py")).write_text(
-        env.get_template("repo_iface").render(Entity=Entity), encoding="utf-8")
+    # Generate domain layer files
+    _generate_domain_files(pkg, bc, entity_class, env)
 
-    # infra
-    (Path(f"src/{pkg}/infra/{bc}")).mkdir(parents=True, exist_ok=True)
-    (Path(f"src/{pkg}/infra/{bc}/repo_sqlalchemy.py")).write_text(env.get_template(
-        "repo_sqla").render(Entity=Entity, bc=bc, table=table), encoding="utf-8")
+    # Generate infrastructure layer files
+    _generate_infrastructure_files(pkg, bc, entity_class, table_name, env)
 
-    # app
-    (Path(f"src/{pkg}/app/{bc}")).mkdir(parents=True, exist_ok=True)
-    (Path(f"src/{pkg}/app/{bc}/services.py")).write_text(
-        env.get_template("service").render(Entity=Entity, bc=bc), encoding="utf-8")
+    # Generate application layer files
+    _generate_application_files(pkg, bc, entity_class, env)
 
-    # interfaces/http
-    ih = Path(f"src/{pkg}/interfaces/http/{bc}")
-    ih.mkdir(parents=True, exist_ok=True)
-    (ih / "controller.py").write_text(env.get_template("controller").render(bc=bc,
-                                                                            name=name), encoding="utf-8")
+    # Generate interface layer files
+    _generate_interface_files(pkg, bc, entity_name, env)
 
-    # --- register into API surface (robust, idempotent) ---
+
+def _generate_domain_files(pkg: str, bc: str, entity_class: str, env: Environment) -> None:
+    """Generate domain layer files (entities and repository interfaces)."""
+    domain_path = Path(f"src/{pkg}/domain/{bc}")
+    domain_path.mkdir(parents=True, exist_ok=True)
+
+    # Generate entity
+    (domain_path / "entities.py").write_text(
+        env.get_template("entity").render(Entity=entity_class), encoding="utf-8")
+
+    # Generate repository interface
+    (domain_path / "repositories.py").write_text(
+        env.get_template("repo_iface").render(Entity=entity_class), encoding="utf-8")
+
+
+def _generate_infrastructure_files(pkg: str, bc: str, entity_class: str, table_name: str, env: Environment) -> None:
+    """Generate infrastructure layer files (repository implementations)."""
+    infra_path = Path(f"src/{pkg}/infra/{bc}")
+    infra_path.mkdir(parents=True, exist_ok=True)
+
+    # Generate SQLAlchemy repository implementation
+    (infra_path / "repo_sqlalchemy.py").write_text(
+        env.get_template("repo_sqla").render(
+            Entity=entity_class, bc=bc, table=table_name),
+        encoding="utf-8")
+
+
+def _generate_application_files(pkg: str, bc: str, entity_class: str, env: Environment) -> None:
+    """Generate application layer files (services)."""
+    app_path = Path(f"src/{pkg}/app/{bc}")
+    app_path.mkdir(parents=True, exist_ok=True)
+
+    # Generate service
+    (app_path / "services.py").write_text(
+        env.get_template("service").render(Entity=entity_class, bc=bc), encoding="utf-8")
+
+
+def _generate_interface_files(pkg: str, bc: str, entity_name: str, env: Environment) -> None:
+    """Generate interface layer files (HTTP controllers)."""
+    interface_path = Path(f"src/{pkg}/interfaces/http/{bc}")
+    interface_path.mkdir(parents=True, exist_ok=True)
+
+    # Generate HTTP controller
+    (interface_path / "controller.py").write_text(
+        env.get_template("controller").render(bc=bc, name=entity_name), encoding="utf-8")
+
+
+def _wire_api_integration(pkg: str, bc: str, entity_name: str) -> None:
+    """Wire the new resource into the API surface with robust, idempotent operations."""
     api_file = Path(f"src/{pkg}/interfaces/http/api.py")
     api_content = api_file.read_text(encoding="utf-8")
 
-    import_line = f"from .{bc}.controller import bp as {name}_bp, init_controller as init_{name}_controller"
-    register_line = f"    api.register_blueprint({name}_bp)"
-    init_line = f"    init_{name}_controller(container)"
+    # Define the lines to be inserted
+    import_line = f"from .{bc}.controller import bp as {entity_name}_bp, init_controller as init_{entity_name}_controller"
+    register_line = f"    api.register_blueprint({entity_name}_bp)"
+    init_line = f"    init_{entity_name}_controller(container)"
 
-    def insert_once(text: str, needle: str, anchor: str, before: bool = False, fallback_pattern: str | None = None) -> str:
-        if needle in text:
-            return text
-        if anchor in text:
-            return text.replace(anchor, (needle + "\n" + anchor) if not before else (anchor + "\n" + needle))
-        if fallback_pattern:
-            m = re.search(fallback_pattern, text, re.DOTALL)
-            if m:
-                start, end = m.span()
-                if before:
-                    return text[:start] + needle + "\n" + text[start:]
-                else:
-                    return text[:end] + "\n" + needle + text[end:]
-        return text.rstrip() + "\n" + needle + "\n"
+    # Insert import, register, and init lines
+    api_content = _insert_line_once(api_content, import_line, "# [forge:auto-imports]",
+                                    r"(?ms)(^from\s+[^\n]+$|^import\s+[^\n]+$)(?:\n(?:from\s+[^\n]+$|import\s+[^\n]+$))*")
 
-    api_content = insert_once(
-        api_content,
-        import_line,
-        anchor="# [forge:auto-imports]",
-        fallback_pattern=r"(?ms)(^from\s+[^\n]+$|^import\s+[^\n]+$)(?:\n(?:from\s+[^\n]+$|import\s+[^\n]+$))*"
-    )
-    api_content = insert_once(
-        api_content,
-        register_line,
-        anchor="    # [forge:auto-register]",
-        fallback_pattern=r"(?ms)def\s+build_api_blueprint\([^\)]*\):\s*\n(.*?)\n\s*return\s+api"
-    )
-    api_content = insert_once(
-        api_content,
-        init_line,
-        anchor="    # [forge:auto-init]",
-        fallback_pattern=r"(?ms)def\s+register_http\([^\)]*\):\s*\n(.*?)\n\s*app\.register_blueprint\(api_bp\)"
-    )
+    api_content = _insert_line_once(api_content, register_line, "    # [forge:auto-register]",
+                                    r"(?ms)def\s+build_api_blueprint\([^\)]*\):\s*\n(.*?)\n\s*return\s+api")
+
+    api_content = _insert_line_once(api_content, init_line, "    # [forge:auto-init]",
+                                    r"(?ms)def\s+register_http\([^\)]*\):\s*\n(.*?)\n\s*app\.register_blueprint\(api_bp\)")
+
     api_file.write_text(api_content, encoding="utf-8")
 
-    # --- DI wiring (imports + register_<name> + call in register_features) ---
-    wiring = Path(f"src/{pkg}/shared/di_wiring.py")
-    w = wiring.read_text(encoding="utf-8")
 
-    import_repo = f"from {pkg}.infra.{bc}.repo_sqlalchemy import SqlAlchemy{Entity}Repository\n"
-    import_service = f"from {pkg}.app.{bc}.services import {Entity}Service\n"
+def _setup_dependency_injection(pkg: str, bc: str, entity_class: str, entity_name: str) -> None:
+    """Setup dependency injection wiring for the new resource."""
+    wiring_file = Path(f"src/{pkg}/shared/di_wiring.py")
+    wiring_content = wiring_file.read_text(encoding="utf-8")
 
-    def insert_after_line(text: str, after_pattern: str, payload: str) -> str:
-        m = re.search(after_pattern, text)
-        if not m:
-            return text if payload in text else (payload + text)
-        idx = m.end()
-        return text if payload in text else (text[:idx] + payload + text[idx:])
+    # Add imports for repository and service
+    import_repo = f"from {pkg}.infra.{bc}.repo_sqlalchemy import SqlAlchemy{entity_class}Repository\n"
+    import_service = f"from {pkg}.app.{bc}.services import {entity_class}Service\n"
 
-    w = insert_after_line(
-        w,
-        after_pattern=r"from\s+\.\.\s*infra\.db\.base\s+import\s+init_engine\s*\n",
-        payload=import_repo + import_service
+    wiring_content = _insert_after_line(
+        wiring_content,
+        r"from\s+\.\.\s*infra\.db\.base\s+import\s+init_engine\s*\n",
+        import_repo + import_service
     )
 
-    func_head = f"def register_{name}(container"
-    if func_head not in w:
-        w += (
-            f"\n\n\ndef register_{name}(container: Container) -> None:\n"
+    # Add registration function if it doesn't exist
+    func_signature = f"def register_{entity_name}(container"
+    if func_signature not in wiring_content:
+        registration_func = (
+            f"\n\n\ndef register_{entity_name}(container: Container) -> None:\n"
+            f"    \"\"\"Register {entity_class} dependencies in the DI container.\"\"\"\n"
             f"    container.register(\n"
-            f"        \"{bc}.{name}.repo\",\n"
-            f"        lambda: SqlAlchemy{Entity}Repository(container.get(\"db.session_factory\")),\n"
+            f"        \"{bc}.{entity_name}.repo\",\n"
+            f"        lambda: SqlAlchemy{entity_class}Repository(container.get(\"db.session_factory\")),\n"
             f"    )\n"
             f"    container.register(\n"
-            f"        \"{bc}.{name}.service\",\n"
-            f"        container.factory({Entity}Service, repo=\"{bc}.{name}.repo\"),\n"
+            f"        \"{bc}.{entity_name}.service\",\n"
+            f"        container.factory({entity_class}Service, repo=\"{bc}.{entity_name}.repo\"),\n"
             f"    )\n"
         )
+        wiring_content += registration_func
 
-    call_line = f"    register_{name}(container)\n"
-    if "def register_features(" in w and call_line not in w:
-        # inject just before end of function or after header
-        w = re.sub(
+    # Add call to registration function in register_features
+    call_line = f"    register_{entity_name}(container)\n"
+    if "def register_features(" in wiring_content and call_line not in wiring_content:
+        wiring_content = re.sub(
             r"(def\s+register_features\(.*?\):\s*\n)",
             r"\1" + call_line,
-            w,
+            wiring_content,
             count=1,
             flags=re.DOTALL,
         )
 
-    wiring.write_text(w, encoding="utf-8")
+    wiring_file.write_text(wiring_content, encoding="utf-8")
 
-    rprint(
-        f"[green]Resource generated:[/green] {bc}.{Entity} (domain/app/infra/interfaces + wiring)")
+
+def _insert_line_once(text: str, needle: str, anchor: str, fallback_pattern: str | None = None) -> str:
+    """
+    Insert a line into text only if it doesn't already exist.
+
+    Args:
+        text: The text to modify
+        needle: The line to insert
+        anchor: The anchor line to insert after
+        fallback_pattern: Regex pattern for fallback insertion point
+
+    Returns:
+        Modified text with the needle inserted
+    """
+    if needle in text:
+        return text
+    if anchor in text:
+        return text.replace(anchor, anchor + "\n" + needle)
+    if fallback_pattern:
+        match = re.search(fallback_pattern, text, re.DOTALL)
+        if match:
+            _, end = match.span()
+            return text[:end] + "\n" + needle + text[end:]
+    return text.rstrip() + "\n" + needle + "\n"
+
+
+def _insert_after_line(text: str, after_pattern: str, payload: str) -> str:
+    """
+    Insert payload after a line matching the given pattern.
+
+    Args:
+        text: The text to modify
+        after_pattern: Regex pattern to find insertion point
+        payload: Text to insert
+
+    Returns:
+        Modified text with payload inserted
+    """
+    match = re.search(after_pattern, text)
+    if not match:
+        return text if payload in text else (payload + text)
+    idx = match.end()
+    return text if payload in text else (text[:idx] + payload + text[idx:])
 
 
 def _detect_package() -> str:
-    for p in Path("src").glob("*/main.py"):
-        return p.parent.name
+    """
+    Detect the package name by looking for main.py in src/ subdirectories.
+
+    Returns:
+        Package name
+
+    Raises:
+        SystemExit: If no package is detected
+    """
+    for path in Path("src").glob("*/main.py"):
+        return path.parent.name
     raise SystemExit("Could not detect src/<package>")
