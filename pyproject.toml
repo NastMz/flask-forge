@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "forge-cli"
+version = "1.0.0"
+description = "Clean Architecture scaffolding for Flask (OOP-first)"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Kevin Martinez" }]
+dependencies = [
+"typer>=0.12",
+"jinja2>=3.1",
+"rich>=13.7",
+]
+
+
+[project.scripts]
+forge = "forge.cli:app"
+
+
+[tool.setuptools.package-data]
+forge = ["templates/**/*", "templates/**/.env.example"]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.ruff]
+line-length = 100
+
+
+[tool.black]
+line-length = 100
