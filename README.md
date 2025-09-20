@@ -7,14 +7,14 @@ It removes boilerplate, enforces best practices, and provides generators for ent
 
 ## ✨ Features
 
-* 🏗️ **Single canonical template**: Clean Architecture (domain/app/infra/interfaces/shared)
-* 🔒 **Strict OOP**: no functional boilerplate, clear layering
-* 🧩 **Generators**: add bounded contexts, entities, repos, services, controllers, tests
-* 📦 **Plugins**: OpenAPI (Smorest), JWT auth, telemetry (planned)
-* ⚡ **DX polish**: Ruff + Black + pre-commit, problem+json error model, request IDs, structured logs
-* 🗄️ **Database support**: SQLAlchemy + Alembic migrations
-* ✅ **Tests**: scaffolded per layer (domain/app/infra/http)
-* 🔧 **CLI utilities**: lint, format, db, doctor, tasks (planned)
+- 🏗️ **Single canonical template**: Clean Architecture (domain/app/infra/interfaces/shared)
+- 🔒 **Strict OOP**: no functional boilerplate, clear layering
+- 🧩 **Generators**: add bounded contexts, entities, repos, services, controllers, tests
+- 📦 **Plugins**: OpenAPI (Smorest), JWT auth, telemetry (planned)
+- ⚡ **DX polish**: Ruff + Black + pre-commit, problem+json error model, request IDs, structured logs
+- 🗄️ **Database support**: SQLAlchemy + Alembic migrations
+- ✅ **Tests**: scaffolded per layer (domain/app/infra/http)
+- 🔧 **CLI utilities**: lint, format, db, doctor, tasks (planned)
 
 ---
 
@@ -23,16 +23,16 @@ It removes boilerplate, enforces best practices, and provides generators for ent
 ### From PyPI
 
 ```bash
-pipx install forge-cli
+pipx install flask-forge
 # or
-pip install forge-cli
+pip install flask-forge
 ```
 
 ### From source (dev mode)
 
 ```bash
-git clone https://github.com/<you>/forge-cli.git
-cd forge-cli
+git clone https://github.com/<you>/flask-forge.git
+cd flask-forge
 pip install -e .
 ```
 
@@ -141,4 +141,3 @@ tests/            # per-layer tests
 ## 📜 License
 
 MIT © Kevin Martinez
-

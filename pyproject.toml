@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "forge-cli"
+name = "flask-forge"
 version = "1.0.0"
 description = "Clean Architecture scaffolding for Flask (OOP-first)"
 readme = "README.md"
