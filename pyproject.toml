@@ -31,7 +31,16 @@ package-dir = {"" = "src"}
 
 [tool.ruff]
 line-length = 100
-
+exclude = [
+  "src/forge/templates",
+]
 
 [tool.black]
 line-length = 100
+target-version = ['py311']
+exclude = '''
+(
+  ^/migrations/             # (app templates sometimes vend a default env)
+| ^/src/forge/templates/    # <-- your Jinja templates live here
+)
+'''
