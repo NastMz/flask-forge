@@ -1,5 +1,7 @@
 from __future__ import annotations
-import logging, sys, structlog
+import logging
+import sys
+import structlog
 
 def configure_logging(level: str = "INFO") -> None:
     timestamper = structlog.processors.TimeStamper(fmt="iso")
