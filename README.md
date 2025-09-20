@@ -23,9 +23,9 @@ It removes boilerplate, enforces best practices, and provides generators for ent
 ### From PyPI
 
 ```bash
-pipx install flask-forge
+pipx install flask-forge-cli
 # or
-pip install flask-forge
+pip install flask-forge-cli
 ```
 
 ### From source (dev mode)
