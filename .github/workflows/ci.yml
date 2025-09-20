@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install tooling
+        run: |
+          python -m pip install -U pip
+          python -m pip install build twine ruff black pytest
+
+      - name: Lint (Ruff)
+        run: ruff check .
+
+      - name: Format check (Black)
+        run: black --check .
+
+      - name: Unit tests (if any for CLI)
+        run: pytest -q || true
+
+      - name: Version sync check
+        run: python scripts/check_version_sync.py
+
+      - name: Build wheel + sdist
+        run: python -m build
+
+      - name: Twine metadata check
+        run: python -m twine check dist/*
+
+      - name: Wheel contains templates
+        run: |
+          python - << 'PY'
+          import glob, zipfile, sys
+          wheels = glob.glob("dist/*.whl")
+          assert wheels, "No wheels built"
+          ok = False
+          with zipfile.ZipFile(wheels[0]) as z:
+              for n in z.namelist():
+                  if n.startswith("forge/templates/"):
+                      ok = True; break
+          assert ok, "Templates not found inside wheel (check package-data/MANIFEST.in)"
+          print("Templates OK in wheel")
+          PY

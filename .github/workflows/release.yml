@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+jobs:
+  build-publish:
+    permissions:
+      id-token: write # OIDC for Trusted Publisher
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install tooling
+        run: |
+          python -m pip install -U pip
+          python -m pip install build twine ruff black
+
+      - name: Hygiene (lint/format/version/metadata)
+        run: |
+          ruff check .
+          black --check .
+          python scripts/check_version_sync.py
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Twine metadata check
+        run: python -m twine check dist/*
+
+      - name: Ensure wheel ships templates
+        run: |
+          python - << 'PY'
+          import glob, zipfile
+          w = glob.glob("dist/*.whl")[0]
+          with zipfile.ZipFile(w) as z:
+              assert any(n.startswith("forge/templates/") for n in z.namelist()), "templates/* missing in wheel"
+          print("Templates OK in release wheel")
+          PY
+
+      - name: Publish to PyPI (Trusted Publisher)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          print-hash: true
