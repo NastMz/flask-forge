@@ -180,20 +180,23 @@ def bounded_context(name: str = typer.Argument(..., help="Bounded context name (
     pkg_root = Path("src") / pkg
 
     # Ensure all necessary directories and __init__.py files exist
-    ensure_init_files(pkg_root, [
-        f"domain/{bc}",
-        f"app/{bc}",
-        f"infra/{bc}",
-        f"interfaces/http/{bc}",
-    ])
+    ensure_init_files(
+        pkg_root,
+        [
+            f"domain/{bc}",
+            f"app/{bc}",
+            f"infra/{bc}",
+            f"interfaces/http/{bc}",
+        ],
+    )
 
-    rprint(
-        f"[green]Bounded context created:[/green] {bc} (domain/app/infra/interfaces)")
+    rprint(f"[green]Bounded context created:[/green] {bc} (domain/app/infra/interfaces)")
 
 
 @generate.command("entity")
-def entity(bc: str = typer.Argument(..., help=BC_HELP),
-           name: str = typer.Argument(..., help=ENTITY_HELP)):
+def entity(
+    bc: str = typer.Argument(..., help=BC_HELP), name: str = typer.Argument(..., help=ENTITY_HELP)
+):
     """
     Generate a domain entity with repository interface.
 
@@ -212,10 +215,14 @@ def entity(bc: str = typer.Argument(..., help=BC_HELP),
     bc = bc.replace("-", "_")  # Normalize bounded context name
     entity_class = name[0].upper() + name[1:]  # PascalCase for class names
 
-    env = Environment(loader=DictLoader({
-        "entity": ENTITY_TMPL,
-        "repo_iface": REPO_IFACE_TMPL,
-    }))
+    env = Environment(
+        loader=DictLoader(
+            {
+                "entity": ENTITY_TMPL,
+                "repo_iface": REPO_IFACE_TMPL,
+            }
+        )
+    )
 
     pkg_root = Path("src") / pkg
 
@@ -226,13 +233,16 @@ def entity(bc: str = typer.Argument(..., help=BC_HELP),
     _generate_domain_files(pkg, bc, entity_class, env)
 
     rprint(
-        f"[green]Entity generated:[/green] {bc}.{entity_class} (domain entity + repository interface)")
+        f"[green]Entity generated:[/green] {bc}.{entity_class} (domain entity + repository interface)"
+    )
 
 
 @generate.command("repo")
-def repository(bc: str = typer.Argument(..., help=BC_HELP),
-               entity: str = typer.Argument(..., help=ENTITY_HELP),
-               impl: str = typer.Option("sqlalchemy", "--impl", help="Repository implementation type")):
+def repository(
+    bc: str = typer.Argument(..., help=BC_HELP),
+    entity: str = typer.Argument(..., help=ENTITY_HELP),
+    impl: str = typer.Option("sqlalchemy", "--impl", help="Repository implementation type"),
+):
     """
     Generate a repository implementation.
 
@@ -250,17 +260,22 @@ def repository(bc: str = typer.Argument(..., help=BC_HELP),
     pkg = _detect_package()
     bc = bc.replace("-", "_")  # Normalize bounded context name
     entity_class = entity[0].upper() + entity[1:]  # PascalCase for class names
-    entity_name = entity[0].lower() + entity[1:]   # camelCase for instances
+    entity_name = entity[0].lower() + entity[1:]  # camelCase for instances
     table_name = entity_name + "s"  # Pluralized table name
 
     if impl != "sqlalchemy":
         rprint(
-            f"[red]Error:[/red] Implementation '{impl}' not supported. Currently only 'sqlalchemy' is available.")
+            f"[red]Error:[/red] Implementation '{impl}' not supported. Currently only 'sqlalchemy' is available."
+        )
         raise typer.Exit(1)
 
-    env = Environment(loader=DictLoader({
-        "repo_sqla": REPO_SQLA_TMPL,
-    }))
+    env = Environment(
+        loader=DictLoader(
+            {
+                "repo_sqla": REPO_SQLA_TMPL,
+            }
+        )
+    )
 
     pkg_root = Path("src") / pkg
 
@@ -270,13 +285,13 @@ def repository(bc: str = typer.Argument(..., help=BC_HELP),
     # Generate infrastructure layer files
     _generate_infrastructure_files(pkg, bc, entity_class, table_name, env)
 
-    rprint(
-        f"[green]Repository generated:[/green] {bc}.{entity_class} ({impl} implementation)")
+    rprint(f"[green]Repository generated:[/green] {bc}.{entity_class} ({impl} implementation)")
 
 
 @generate.command("service")
-def service(bc: str = typer.Argument(..., help=BC_HELP),
-            name: str = typer.Argument(..., help=SERVICE_HELP)):
+def service(
+    bc: str = typer.Argument(..., help=BC_HELP), name: str = typer.Argument(..., help=SERVICE_HELP)
+):
     """
     Generate a service class for business logic.
 
@@ -300,9 +315,13 @@ def service(bc: str = typer.Argument(..., help=BC_HELP),
         entity_class = name
         name = name + "Service"  # Add 'Service' suffix if not present
 
-    env = Environment(loader=DictLoader({
-        "service": SERVICE_TMPL,
-    }))
+    env = Environment(
+        loader=DictLoader(
+            {
+                "service": SERVICE_TMPL,
+            }
+        )
+    )
 
     pkg_root = Path("src") / pkg
 
@@ -312,13 +331,14 @@ def service(bc: str = typer.Argument(..., help=BC_HELP),
     # Generate application layer files
     _generate_application_files(pkg, bc, entity_class, env)
 
-    rprint(
-        f"[green]Service generated:[/green] {bc}.{name} (application service)")
+    rprint(f"[green]Service generated:[/green] {bc}.{name} (application service)")
 
 
 @generate.command("controller")
-def controller(bc: str = typer.Argument(..., help=BC_HELP),
-               name: str = typer.Argument(..., help=CONTROLLER_HELP)):
+def controller(
+    bc: str = typer.Argument(..., help=BC_HELP),
+    name: str = typer.Argument(..., help=CONTROLLER_HELP),
+):
     """
     Generate a Flask blueprint controller.
 
@@ -336,9 +356,13 @@ def controller(bc: str = typer.Argument(..., help=BC_HELP),
     bc = bc.replace("-", "_")  # Normalize bounded context name
     entity_name = name.lower()  # Ensure lowercase for URL patterns
 
-    env = Environment(loader=DictLoader({
-        "controller": CONTROLLER_TMPL,
-    }))
+    env = Environment(
+        loader=DictLoader(
+            {
+                "controller": CONTROLLER_TMPL,
+            }
+        )
+    )
 
     pkg_root = Path("src") / pkg
 
@@ -348,13 +372,13 @@ def controller(bc: str = typer.Argument(..., help=BC_HELP),
     # Generate interface layer files
     _generate_interface_files(pkg, bc, entity_name, env)
 
-    rprint(
-        f"[green]Controller generated:[/green] {bc}.{entity_name} (Flask blueprint)")
+    rprint(f"[green]Controller generated:[/green] {bc}.{entity_name} (Flask blueprint)")
 
 
 @generate.command("resource")
-def resource(bc: str = typer.Argument(..., help=BC_HELP),
-             entity: str = typer.Argument(..., help=ENTITY_HELP)):
+def resource(
+    bc: str = typer.Argument(..., help=BC_HELP), entity: str = typer.Argument(..., help=ENTITY_HELP)
+):
     """
     Generate a complete CRUD resource following Clean Architecture principles.
 
@@ -377,7 +401,7 @@ def resource(bc: str = typer.Argument(..., help=BC_HELP),
     pkg = _detect_package()
     bc = bc.replace("-", "_")  # Normalize bounded context name
     entity_class = entity[0].upper() + entity[1:]  # PascalCase for class names
-    entity_name = entity[0].lower() + entity[1:]   # camelCase for instances
+    entity_name = entity[0].lower() + entity[1:]  # camelCase for instances
     table_name = entity_name + "s"  # Pluralized table name
 
     # Generate all code files
@@ -390,29 +414,39 @@ def resource(bc: str = typer.Argument(..., help=BC_HELP),
     _setup_dependency_injection(pkg, bc, entity_class, entity_name)
 
     rprint(
-        f"[green]Resource generated:[/green] {bc}.{entity_class} (domain/app/infra/interfaces + wiring)")
+        f"[green]Resource generated:[/green] {bc}.{entity_class} (domain/app/infra/interfaces + wiring)"
+    )
 
 
-def _generate_code_files(pkg: str, bc: str, entity_class: str, entity_name: str, table_name: str) -> None:
+def _generate_code_files(
+    pkg: str, bc: str, entity_class: str, entity_name: str, table_name: str
+) -> None:
     """Generate all the code files for the resource."""
-    env = Environment(loader=DictLoader({
-        "entity": ENTITY_TMPL,
-        "repo_iface": REPO_IFACE_TMPL,
-        "repo_sqla": REPO_SQLA_TMPL,
-        "service": SERVICE_TMPL,
-        "controller": CONTROLLER_TMPL,
-        "api_reg": API_REG_PATCH,
-    }))
+    env = Environment(
+        loader=DictLoader(
+            {
+                "entity": ENTITY_TMPL,
+                "repo_iface": REPO_IFACE_TMPL,
+                "repo_sqla": REPO_SQLA_TMPL,
+                "service": SERVICE_TMPL,
+                "controller": CONTROLLER_TMPL,
+                "api_reg": API_REG_PATCH,
+            }
+        )
+    )
 
     pkg_root = Path("src") / pkg
 
     # Ensure all necessary directories and __init__.py files exist
-    ensure_init_files(pkg_root, [
-        f"domain/{bc}",
-        f"app/{bc}",
-        f"infra/{bc}",
-        f"interfaces/http/{bc}",
-    ])
+    ensure_init_files(
+        pkg_root,
+        [
+            f"domain/{bc}",
+            f"app/{bc}",
+            f"infra/{bc}",
+            f"interfaces/http/{bc}",
+        ],
+    )
 
     # Generate domain layer files
     _generate_domain_files(pkg, bc, entity_class, env)
@@ -434,23 +468,27 @@ def _generate_domain_files(pkg: str, bc: str, entity_class: str, env: Environmen
 
     # Generate entity
     (domain_path / "entities.py").write_text(
-        env.get_template("entity").render(Entity=entity_class), encoding="utf-8")
+        env.get_template("entity").render(Entity=entity_class), encoding="utf-8"
+    )
 
     # Generate repository interface
     (domain_path / "repositories.py").write_text(
-        env.get_template("repo_iface").render(Entity=entity_class), encoding="utf-8")
+        env.get_template("repo_iface").render(Entity=entity_class), encoding="utf-8"
+    )
 
 
-def _generate_infrastructure_files(pkg: str, bc: str, entity_class: str, table_name: str, env: Environment) -> None:
+def _generate_infrastructure_files(
+    pkg: str, bc: str, entity_class: str, table_name: str, env: Environment
+) -> None:
     """Generate infrastructure layer files (repository implementations)."""
     infra_path = Path(f"src/{pkg}/infra/{bc}")
     infra_path.mkdir(parents=True, exist_ok=True)
 
     # Generate SQLAlchemy repository implementation
     (infra_path / "repo_sqlalchemy.py").write_text(
-        env.get_template("repo_sqla").render(
-            Entity=entity_class, bc=bc, table=table_name),
-        encoding="utf-8")
+        env.get_template("repo_sqla").render(Entity=entity_class, bc=bc, table=table_name),
+        encoding="utf-8",
+    )
 
 
 def _generate_application_files(pkg: str, bc: str, entity_class: str, env: Environment) -> None:
@@ -460,7 +498,8 @@ def _generate_application_files(pkg: str, bc: str, entity_class: str, env: Envir
 
     # Generate service
     (app_path / "services.py").write_text(
-        env.get_template("service").render(Entity=entity_class, bc=bc), encoding="utf-8")
+        env.get_template("service").render(Entity=entity_class, bc=bc), encoding="utf-8"
+    )
 
 
 def _generate_interface_files(pkg: str, bc: str, entity_name: str, env: Environment) -> None:
@@ -470,7 +509,8 @@ def _generate_interface_files(pkg: str, bc: str, entity_name: str, env: Environm
 
     # Generate HTTP controller
     (interface_path / "controller.py").write_text(
-        env.get_template("controller").render(bc=bc, name=entity_name), encoding="utf-8")
+        env.get_template("controller").render(bc=bc, name=entity_name), encoding="utf-8"
+    )
 
 
 def _wire_api_integration(pkg: str, bc: str, entity_name: str) -> None:
@@ -484,14 +524,26 @@ def _wire_api_integration(pkg: str, bc: str, entity_name: str) -> None:
     init_line = f"    init_{entity_name}_controller(container)"
 
     # Insert import, register, and init lines
-    api_content = _insert_line_once(api_content, import_line, "# [forge:auto-imports]",
-                                    r"(?ms)(^from\s+[^\n]+$|^import\s+[^\n]+$)(?:\n(?:from\s+[^\n]+$|import\s+[^\n]+$))*")
+    api_content = _insert_line_once(
+        api_content,
+        import_line,
+        "# [forge:auto-imports]",
+        r"(?ms)(^from\s+[^\n]+$|^import\s+[^\n]+$)(?:\n(?:from\s+[^\n]+$|import\s+[^\n]+$))*",
+    )
 
-    api_content = _insert_line_once(api_content, register_line, "    # [forge:auto-register]",
-                                    r"(?ms)def\s+build_api_blueprint\([^\)]*\):\s*\n(.*?)\n\s*return\s+api")
+    api_content = _insert_line_once(
+        api_content,
+        register_line,
+        "    # [forge:auto-register]",
+        r"(?ms)def\s+build_api_blueprint\([^\)]*\):\s*\n(.*?)\n\s*return\s+api",
+    )
 
-    api_content = _insert_line_once(api_content, init_line, "    # [forge:auto-init]",
-                                    r"(?ms)def\s+register_http\([^\)]*\):\s*\n(.*?)\n\s*app\.register_blueprint\(api_bp\)")
+    api_content = _insert_line_once(
+        api_content,
+        init_line,
+        "    # [forge:auto-init]",
+        r"(?ms)def\s+register_http\([^\)]*\):\s*\n(.*?)\n\s*app\.register_blueprint\(api_bp\)",
+    )
 
     api_file.write_text(api_content, encoding="utf-8")
 
@@ -502,13 +554,15 @@ def _setup_dependency_injection(pkg: str, bc: str, entity_class: str, entity_nam
     wiring_content = wiring_file.read_text(encoding="utf-8")
 
     # Add imports for repository and service
-    import_repo = f"from {pkg}.infra.{bc}.repo_sqlalchemy import SqlAlchemy{entity_class}Repository\n"
+    import_repo = (
+        f"from {pkg}.infra.{bc}.repo_sqlalchemy import SqlAlchemy{entity_class}Repository\n"
+    )
     import_service = f"from {pkg}.app.{bc}.services import {entity_class}Service\n"
 
     wiring_content = _insert_after_line(
         wiring_content,
         r"from\s+\.\.\s*infra\.db\.base\s+import\s+init_engine\s*\n",
-        import_repo + import_service
+        import_repo + import_service,
     )
 
     # Add registration function if it doesn't exist
@@ -516,14 +570,14 @@ def _setup_dependency_injection(pkg: str, bc: str, entity_class: str, entity_nam
     if func_signature not in wiring_content:
         registration_func = (
             f"\n\n\ndef register_{entity_name}(container: Container) -> None:\n"
-            f"    \"\"\"Register {entity_class} dependencies in the DI container.\"\"\"\n"
+            f'    """Register {entity_class} dependencies in the DI container."""\n'
             f"    container.register(\n"
-            f"        \"{bc}.{entity_name}.repo\",\n"
-            f"        lambda: SqlAlchemy{entity_class}Repository(container.get(\"db.session_factory\")),\n"
+            f'        "{bc}.{entity_name}.repo",\n'
+            f'        lambda: SqlAlchemy{entity_class}Repository(container.get("db.session_factory")),\n'
             f"    )\n"
             f"    container.register(\n"
-            f"        \"{bc}.{entity_name}.service\",\n"
-            f"        container.factory({entity_class}Service, repo=\"{bc}.{entity_name}.repo\"),\n"
+            f'        "{bc}.{entity_name}.service",\n'
+            f'        container.factory({entity_class}Service, repo="{bc}.{entity_name}.repo"),\n'
             f"    )\n"
         )
         wiring_content += registration_func
@@ -542,7 +596,9 @@ def _setup_dependency_injection(pkg: str, bc: str, entity_class: str, entity_nam
     wiring_file.write_text(wiring_content, encoding="utf-8")
 
 
-def _insert_line_once(text: str, needle: str, anchor: str, fallback_pattern: str | None = None) -> str:
+def _insert_line_once(
+    text: str, needle: str, anchor: str, fallback_pattern: str | None = None
+) -> str:
     """
     Insert a line into text only if it doesn't already exist.
 

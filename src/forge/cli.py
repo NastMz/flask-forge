@@ -124,8 +124,7 @@ def _render_template_dir(template_dir: Path, out_dir: Path, context: dict[str, s
             myapp/
               main.py (with template variables rendered)
     """
-    env = Environment(loader=FileSystemLoader(
-        str(template_dir)), keep_trailing_newline=True)
+    env = Environment(loader=FileSystemLoader(str(template_dir)), keep_trailing_newline=True)
 
     for root, _, files in os.walk(template_dir):
         root_path = Path(root)
@@ -154,10 +153,10 @@ def _render_template_dir(template_dir: Path, out_dir: Path, context: dict[str, s
 
 @app.command()
 def new(
-    project_name: str = typer.Argument(...,
-                                       help="Destination folder / package name"),
+    project_name: str = typer.Argument(..., help="Destination folder / package name"),
     package: Optional[str] = typer.Option(
-        None, help="Python package name (defaults to project_name)"),
+        None, help="Python package name (defaults to project_name)"
+    ),
 ) -> None:
     """
     Create a new Clean Architecture Flask project from template.
@@ -233,32 +232,36 @@ def new(
     pkg = (package or project_name).strip().replace("-", "_")
 
     # Locate and render template
-    template_dir = Path(__file__).with_suffix(
-        "").parent / "templates" / TEMPLATE
+    template_dir = Path(__file__).with_suffix("").parent / "templates" / TEMPLATE
     context = {"project_name": project_name, "package_name": pkg}
     _render_template_dir(template_dir, dst, context)
 
     # Initialize Python package structure
     pkg_root = dst / "src" / pkg
-    ensure_init_files(pkg_root, [
-        "",                    # src/package/__init__.py
-        "shared",              # Shared utilities (DI, config, logging)
-        "domain",              # Domain entities and business rules
-        "app",                 # Application services and use cases
-        "infra",               # Infrastructure implementations
-        "infra/db",            # Database configuration and base classes
-        "interfaces",          # External interfaces
-        "interfaces/http",     # HTTP/REST API controllers
-    ])
+    ensure_init_files(
+        pkg_root,
+        [
+            "",  # src/package/__init__.py
+            "shared",  # Shared utilities (DI, config, logging)
+            "domain",  # Domain entities and business rules
+            "app",  # Application services and use cases
+            "infra",  # Infrastructure implementations
+            "infra/db",  # Database configuration and base classes
+            "interfaces",  # External interfaces
+            "interfaces/http",  # HTTP/REST API controllers
+        ],
+    )
 
     # Success message with next steps
     rprint("[green]Project created![/green]")
-    rprint(f"""Next steps:
+    rprint(
+        f"""Next steps:
   1) cd {dst.name}
   2) pip install -e '.[dev]'
   3) cp .env.example .env
   4) forge run dev -p 8000
-""")
+"""
+    )
 
 
 if __name__ == "__main__":

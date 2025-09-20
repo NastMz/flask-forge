@@ -24,8 +24,10 @@ run = typer.Typer(help="Run utilities")
 
 
 @run.command("dev")
-def dev(module: str = typer.Option(None, help="Python package to run (auto-detect if omitted)"),
-        port: int = typer.Option(8000, "--port", "-p")):
+def dev(
+    module: str = typer.Option(None, help="Python package to run (auto-detect if omitted)"),
+    port: int = typer.Option(8000, "--port", "-p"),
+):
     """
     Start the development server for the application.
 
@@ -57,8 +59,7 @@ def dev(module: str = typer.Option(None, help="Python package to run (auto-detec
     # Detect target package
     pkg = module or _guess_package()
     if not pkg:
-        rprint(
-            "[red]Could not detect package. Pass --module <pkg> or run from project root.[/red]")
+        rprint("[red]Could not detect package. Pass --module <pkg> or run from project root.[/red]")
         raise typer.Exit(2)
 
     # Configure environment
@@ -72,8 +73,7 @@ def dev(module: str = typer.Option(None, help="Python package to run (auto-detec
     try:
         runpy.run_module(target_module, run_name="__main__")
     except ModuleNotFoundError as e:
-        rprint(
-            f"[red]Error:[/red] Could not find module '{target_module}': {e}")
+        rprint(f"[red]Error:[/red] Could not find module '{target_module}': {e}")
         raise typer.Exit(1)
     except Exception as e:
         rprint(f"[red]Error running application:[/red] {e}")

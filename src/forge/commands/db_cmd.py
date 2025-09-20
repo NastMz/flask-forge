@@ -66,9 +66,7 @@ def _create_alembic_ini() -> None:
     ini_file = Path("alembic.ini")
     if not ini_file.exists():
         ini_content = (
-            "[alembic]\n"
-            "script_location = migrations\n"
-            "sqlalchemy.url = sqlite:///app.db\n"
+            "[alembic]\n" "script_location = migrations\n" "sqlalchemy.url = sqlite:///app.db\n"
         )
         ini_file.write_text(ini_content, encoding="utf-8")
         typer.echo("Created alembic.ini")
@@ -128,8 +126,7 @@ def migrate(message: str = typer.Option("auto", "--message", "-m")):
         Must be run from the project root directory.
     """
     _ensure_root()
-    subprocess.check_call(
-        ["alembic", "revision", "--autogenerate", "-m", message])
+    subprocess.check_call(["alembic", "revision", "--autogenerate", "-m", message])
 
 
 @db.command("upgrade")

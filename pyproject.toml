@@ -16,6 +16,13 @@ dependencies = [
 "rich>=13.7",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "black>=24.8.0",
+    "ruff>=0.6.9",
+    "pre-commit>=3.4.0",
+    "pytest>=7.4.0",
+]
 
 [project.scripts]
 forge = "forge.cli:app"
@@ -33,6 +40,11 @@ package-dir = {"" = "src"}
 line-length = 100
 exclude = [
   "src/forge/templates",
+  "venv",
+  ".venv",
+  "migrations",
+  "__pycache__",
+  ".git",
 ]
 
 [tool.black]
@@ -42,5 +54,8 @@ exclude = '''
 (
   ^/migrations/             # (app templates sometimes vend a default env)
 | ^/src/forge/templates/    # <-- your Jinja templates live here
+| ^/\.venv/                 # virtual environments
+| ^/venv/                   # virtual environments
+| ^/\.git/                  # git metadata
 )
 '''
