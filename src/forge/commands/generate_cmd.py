@@ -155,6 +155,74 @@ def register_{{name}}(api: Blueprint, container) -> None:
     api.register_blueprint({{name}}_bp)
 """
 
+# --- Test Templates ---
+# These templates define basic tests for each layer
+
+# Domain Layer Test Template - Validates entity behavior
+TEST_DOMAIN_TMPL = """
+from {pkg}.domain.{bc}.entities import {Entity}
+
+def test_entity_can_be_constructed():
+    e = {Entity}(id=None, name="X")
+    assert e.name == "X"
+"""
+
+# Application Layer Test Template - Validates service logic
+TEST_APP_TMPL = """
+from {pkg}.app.{bc}.services import {Entity}Service
+from {pkg}.domain.{bc}.entities import {Entity}
+
+class FakeRepo:
+    def __init__(self):
+        self.items = []
+    def add(self, e: {Entity}):
+        e.id = 1; self.items.append(e); return e
+    def list(self):
+        return list(self.items)
+
+def test_service_create_and_list():
+    svc = {Entity}Service(repo=FakeRepo())
+    created = svc.create("A")
+    assert created.id == 1
+    assert [x.name for x in svc.list()] == ["A"]
+"""
+
+# Infrastructure Layer Test Template - Validates repository implementation
+TEST_INFRA_TMPL = """
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from {pkg}.infra.db.base import Base
+from {pkg}.infra.{bc}.repo_sqlalchemy import SqlAlchemy{Entity}Repository, {Entity}Row
+
+
+def test_sqlalchemy_repo_roundtrip(tmp_path):
+    url = f"sqlite:///{tmp_path}/test.db"
+    engine = create_engine(url, future=True)
+    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    Base.metadata.create_all(bind=engine)
+
+    repo = SqlAlchemy{Entity}Repository(Session)
+    one = repo.add(type("E", (), {{"id": None, "name": "X"}}))
+    assert one.id is not None
+    assert [x.name for x in repo.list()] == ["X"]
+"""
+
+# Interface Layer Test Template - Validates HTTP endpoints
+TEST_HTTP_TMPL = """
+from importlib import import_module
+
+def test_http_smoke():
+    pkg = import_module("{pkg}")
+    app = pkg.create_app()
+    c = app.test_client()
+    r = c.post("/api/{name}", json={{"name": "X"}})
+    assert r.status_code == 201
+    r = c.get("/api/{name}")
+    assert r.status_code == 200
+"""
+
+# --- Command Implementations ---
+
 
 @generate.command("bc")
 def bounded_context(name: str = typer.Argument(..., help="Bounded context name (e.g. catalog)")):
@@ -460,6 +528,9 @@ def _generate_code_files(
     # Generate interface layer files
     _generate_interface_files(pkg, bc, entity_name, env)
 
+    # Generate test files for all layers
+    _generate_test_files(pkg, bc, entity_class, entity_name)
+
 
 def _generate_domain_files(pkg: str, bc: str, entity_class: str, env: Environment) -> None:
     """Generate domain layer files (entities and repository interfaces)."""
@@ -594,6 +665,57 @@ def _setup_dependency_injection(pkg: str, bc: str, entity_class: str, entity_nam
         )
 
     wiring_file.write_text(wiring_content, encoding="utf-8")
+
+
+def _generate_test_files(pkg: str, bc: str, entity_class: str, entity_name: str) -> None:
+    """Generate test files for each layer of the resource."""
+    env = Environment(
+        loader=DictLoader(
+            {
+                "test_domain": TEST_DOMAIN_TMPL,
+                "test_app": TEST_APP_TMPL,
+                "test_infra": TEST_INFRA_TMPL,
+                "test_http": TEST_HTTP_TMPL,
+            }
+        )
+    )
+
+    pkg_root = Path("src") / pkg
+
+    # Ensure test directories and __init__.py files exist
+    ensure_init_files(
+        pkg_root,
+        [
+            f"tests/domain/{bc}",
+            f"tests/app/{bc}",
+            f"tests/infra/{bc}",
+            "tests/interfaces/http",
+        ],
+    )
+
+    # Generate domain layer test
+    (pkg_root / f"tests/domain/{bc}/test_entities.py").write_text(
+        env.get_template("test_domain").render(pkg=pkg, bc=bc, Entity=entity_class),
+        encoding="utf-8",
+    )
+
+    # Generate application layer test
+    (pkg_root / f"tests/app/{bc}/test_services.py").write_text(
+        env.get_template("test_app").render(pkg=pkg, bc=bc, Entity=entity_class),
+        encoding="utf-8",
+    )
+
+    # Generate infrastructure layer test
+    (pkg_root / f"tests/infra/{bc}/test_repo_sqlalchemy.py").write_text(
+        env.get_template("test_infra").render(pkg=pkg, bc=bc, Entity=entity_class),
+        encoding="utf-8",
+    )
+
+    # Generate interface layer test
+    (pkg_root / f"tests/interfaces/http/test_{entity_name}.py").write_text(
+        env.get_template("test_http").render(pkg=pkg, name=entity_name),
+        encoding="utf-8",
+    )
 
 
 def _insert_line_once(
