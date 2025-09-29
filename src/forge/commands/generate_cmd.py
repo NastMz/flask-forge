@@ -114,35 +114,56 @@ class {{Entity}}Service:
         return list(self._repo.list())
 """
 
-# HTTP Controller Template - REST API endpoints
+# HTTP Controller Template - REST API endpoints with OpenAPI integration
 CONTROLLER_TMPL = """
 from __future__ import annotations
-from flask import Blueprint, request, jsonify
+from flask import request
+from flask.views import MethodView
+from flask_smorest import Blueprint
+from marshmallow import Schema, fields
 from ....shared.di import Container
 
-bp = Blueprint("{{name}}", __name__, url_prefix="/{{name}}")
+# Create blueprint with OpenAPI integration
+bp = Blueprint("{{name}}", __name__, url_prefix="/{{name}}", description="{{name|title}} management endpoints")
 _container: Container | None = None
 
 def init_controller(container: Container) -> None:
     global _container
     _container = container
 
-@bp.post("")
-def create_{{name}}():
-    if _container is None:
-            raise RuntimeError("Controller not initialized")
-    svc = _container.get("{{bc}}.{{name}}.service")
-    data = request.get_json(force=True)
-    item = svc.create(data.get("name", ""))
-    return jsonify({"id": item.id, "name": item.name}), 201
+# Schemas for OpenAPI documentation
+class {{name|title}}Schema(Schema):
+    id = fields.Integer(dump_only=True)
+    name = fields.String(required=True)
 
-@bp.get("")
-def list_{{name}}():
-    if _container is None:
+class {{name|title}}CreateSchema(Schema):
+    name = fields.String(required=True)
+
+class {{name|title}}ListSchema(Schema):
+    items = fields.List(fields.Nested({{name|title}}Schema))
+
+@bp.route("")
+class {{name|title}}Collection(MethodView):
+    @bp.response(200, {{name|title}}ListSchema)
+    @bp.doc(summary="List all {{name}}s", description="Retrieve a list of all {{name}}s")
+    def get(self):
+        \"\"\"List all {{name}}s\"\"\"
+        if _container is None:
             raise RuntimeError("Controller not initialized")
-    svc = _container.get("{{bc}}.{{name}}.service")
-    items = svc.list()
-    return jsonify([{"id": i.id, "name": i.name} for i in items])
+        svc = _container.get("{{bc}}.{{name}}.service")
+        items = svc.list()
+        return {"items": [{"id": i.id, "name": i.name} for i in items]}
+
+    @bp.arguments({{name|title}}CreateSchema)
+    @bp.response(201, {{name|title}}Schema)
+    @bp.doc(summary="Create a new {{name}}", description="Create a new {{name}} with the provided data")
+    def post(self, new_item):
+        \"\"\"Create a new {{name}}\"\"\"
+        if _container is None:
+            raise RuntimeError("Controller not initialized")
+        svc = _container.get("{{bc}}.{{name}}.service")
+        item = svc.create(new_item["name"])
+        return {"id": item.id, "name": item.name}
 """
 
 # API Registration Template - Wires controllers into the main API
@@ -202,7 +223,7 @@ def test_sqlalchemy_repo_roundtrip(tmp_path):
     Base.metadata.create_all(bind=engine)
 
     repo = SqlAlchemy{Entity}Repository(Session)
-    one = repo.add(type("E", (), {{"id": None, "name": "X"}}))
+    one = repo.add(type("E", (), {"id": None, "name": "X"}))
     assert one.id is not None
     assert [x.name for x in repo.list()] == ["X"]
 """
@@ -215,7 +236,7 @@ def test_http_smoke():
     pkg = import_module("{pkg}")
     app = pkg.create_app()
     c = app.test_client()
-    r = c.post("/api/{name}", json={{"name": "X"}})
+    r = c.post("/api/{name}", json={"name": "X"})
     assert r.status_code == 201
     r = c.get("/api/{name}")
     assert r.status_code == 200
@@ -594,6 +615,32 @@ def _wire_api_integration(pkg: str, bc: str, entity_name: str) -> None:
     register_line = f"    api.register_blueprint({entity_name}_bp)"
     init_line = f"    init_{entity_name}_controller(container)"
 
+    # Check if OpenAPI is available and add special handling for flask-smorest
+    has_openapi = "from .ext.openapi import configure_openapi" in api_content
+
+    if has_openapi:
+        # For OpenAPI integration, we need to register with the smorest API instance
+        openapi_import = "from .ext.openapi import get_api_instance"
+        openapi_register_logic = f"""    # Register with OpenAPI if available
+    openapi_api = get_api_instance()
+    if openapi_api and hasattr({entity_name}_bp, 'doc'):
+        # This is a flask-smorest blueprint, register with API
+        openapi_api.register_blueprint({entity_name}_bp)
+    else:
+        # Fallback to regular Flask blueprint registration
+        api.register_blueprint({entity_name}_bp)"""
+
+        # Insert OpenAPI import
+        api_content = _insert_line_once(
+            api_content,
+            openapi_import,
+            "# [forge:auto-imports]",
+            r"(?ms)(^from\s+[^\n]+$|^import\s+[^\n]+$)(?:\n(?:from\s+[^\n]+$|import\s+[^\n]+$))*",
+        )
+
+        # Replace simple register line with OpenAPI-aware logic
+        register_line = openapi_register_logic
+
     # Insert import, register, and init lines
     api_content = _insert_line_once(
         api_content,
@@ -608,6 +655,15 @@ def _wire_api_integration(pkg: str, bc: str, entity_name: str) -> None:
         "    # [forge:auto-register]",
         r"(?ms)def\s+build_api_blueprint\([^\)]*\):\s*\n(.*?)\n\s*return\s+api",
     )
+
+    api_content = _insert_line_once(
+        api_content,
+        init_line,
+        "    # [forge:auto-init]",
+        r"(?ms)def\s+register_http\([^\)]*\):\s*\n(.*?)\n\s*app\.register_blueprint\(api_bp\)",
+    )
+
+    api_file.write_text(api_content, encoding="utf-8")
 
     api_content = _insert_line_once(
         api_content,

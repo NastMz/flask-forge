@@ -35,12 +35,14 @@ from jinja2 import Environment, FileSystemLoader
 from .commands.run_cmd import run as run_cmd
 from .commands.db_cmd import db as db_cmd
 from .commands.generate_cmd import generate as generate_cmd
+from .commands.plugin_cmd import plugin
 from .utils.fs import ensure_init_files
 
 app = typer.Typer(help="Forge – Clean Architecture Flask scaffolding CLI")
 app.add_typer(run_cmd, name="run")
 app.add_typer(db_cmd, name="db")
 app.add_typer(generate_cmd, name="generate")
+app.add_typer(plugin, name="plugin")
 
 # Default template to use for new projects
 TEMPLATE = "clean"
