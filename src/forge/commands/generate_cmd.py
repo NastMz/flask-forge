@@ -282,7 +282,7 @@ def test_http_smoke():
     pkg = import_module("{pkg}")
     app = pkg.create_app()
     c = app.test_client()
-    r = c.post("/api/{name}", json={"name": "X"})
+    r = c.post("/api/{name}", json={'name': 'X'})
     assert r.status_code == 201
     r = c.get("/api/{name}")
     assert r.status_code == 200
