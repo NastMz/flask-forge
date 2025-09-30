@@ -197,7 +197,7 @@ from __future__ import annotations
 from flask_smorest import Api
 from flask import Flask
 
-# Global API instance para que los blueprints puedan registrarse
+# Global API instance so blueprints can register themselves
 openapi_api = None
 
 def configure_openapi(app: Flask):
