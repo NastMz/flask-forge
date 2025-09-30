@@ -76,7 +76,7 @@ def _update_pyproject_dependencies(pyproject_path: Path) -> bool:
     missing_deps: list[str] = []
     for dep in required_deps:
         # Look for the dependency with proper word boundaries
-        if not re.search(rf'["\']({dep})["><=~!\s]', content):
+        if not re.search(rf'["\']({dep})[]"><=~!\s]', content):
             missing_deps.append(dep)
 
     if not missing_deps:
