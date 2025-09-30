@@ -269,7 +269,7 @@ def test_sqlalchemy_repo_roundtrip(tmp_path):
     Base.metadata.create_all(bind=engine)
 
     repo = SqlAlchemy{Entity}Repository(Session)
-    one = repo.add(type("E", (), {"id": None, "name": "X"}))
+    one = repo.add(type("E", (), {'id': None, 'name': 'X'}))
     assert one.id is not None
     assert [x.name for x in repo.list()] == ["X"]
 """
