@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flask-forge-cli"
-version = "1.0.2"
+version = "1.1.0"
 description = "Clean Architecture scaffolding for Flask (OOP-first)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,6 +25,10 @@ dev = [
     "pytest>=7.4.0",
     "rich>=13.7",
     "requests>=2.31.0",
+    "build>=0.10.0",
+    "twine>=4.0.2",
+    "setuptools>=68",
+    "wheel>=0.40.0",
 ]
 
 [project.scripts]
